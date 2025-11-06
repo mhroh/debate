@@ -43,7 +43,7 @@ def get_authorize():
     # gspread 클라이언트 생성
     return gspread.authorize(creds)
 
-def getSetupInfo():
+def get_setup_info():
     """
     Google Sheets에서 설정 정보를 가져오는 함수입니다.
 
@@ -101,7 +101,7 @@ def getSetupInfo():
     
     return temp
 
-def add_Content(role, content):
+def add_content(role, content):
     """
     대화 내용을 Google Sheets에 추가하는 함수입니다.
 
@@ -159,11 +159,11 @@ def get_worksheet(doc, name):
         new_sheet_name = name
     )
 
-    add_Hyperlink(doc, new_worksheet.id, name)
+    add_hyperlink(doc, new_worksheet.id, name)
 
     return new_worksheet
 
-def add_Hyperlink(doc, id, nick_name):
+def add_hyperlink(doc, id, nick_name):
     """
     Google Sheets 문서에 하이퍼링크를 추가하는 함수입니다.
 

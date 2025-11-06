@@ -1,4 +1,3 @@
-import functools
 import streamlit as st
 from streamlit import logger
 import anthropic
@@ -27,7 +26,7 @@ def initialize(api_key, nick_name):
 
     이 함수는 이미 초기화가 완료된 경우 아무 작업도 수행하지 않습니다.
     """
-    if "bot" and "sheet" in st.session_state:
+    if "bot" in st.session_state and "sheet" in st.session_state:
         return
     
     log_p("초기화 시작")
@@ -45,7 +44,7 @@ def initialize(api_key, nick_name):
 
 def set_class_info():
     log_p("클래스 정보 설정")
-    st.session_state['setupInfo'] = gs.getSetupInfo()
+    st.session_state['setupInfo'] = gs.get_setup_info()
 
 def process_data(function_name):
     with st.spinner('마무리 하는 중~'):
@@ -90,11 +89,7 @@ def main():
     if prompt := st.chat_input("대화 내용을 입력해 주세요.", on_submit=disable_input, args=(True,), disabled=st.session_state.processing):
         if not user_name:
             st.warning('대화명을 입력해 주세요!', icon='⚠️')
-
-            time.sleep(3)
             disable_input(False)
-            st.rerun()
-
             return
         
         add_message(st.session_state.messages, "user", prompt)
@@ -114,11 +109,7 @@ def main():
 
                 if stream == None:
                     delete_message()
-
                     disable_input(False)
-                    time.sleep(3)
-                    st.rerun()
-
                     return
 
                 full_response = message_processing(stream, message_placeholder)
@@ -128,7 +119,6 @@ def main():
             disable_input(False)
             st.rerun()
 
-@st.cache_data 
 def log_p(message):
     """
     콘솔에 메세지 출력하기
@@ -185,17 +175,6 @@ def execute_prompt(messages):
 
     return None
 
-def wiget_on_off(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        st.session_state["processing"] = True
-        
-        result = func(*args, **kwargs)
-
-        st.session_state["processing"] = False
-        return result    
-    return wrapper
-
 def message_processing(stream, output = None):
     """
     스트리밍 응답을 처리하고 전체 응답을 구성하는 함수입니다.
@@ -243,17 +222,6 @@ def end_conversation():
 
     이 함수는 세션 상태에 저장된 설정 정보와 메시지 기록을 사용합니다.
     """
-    st.success("1/2 작업중......")
-    time.sleep(2)
-    st.success("1/2 완료")
-    time.sleep(2)
-    st.success("2/2 작업중......")
-    time.sleep(2)
-    st.success("2/2 완료")
-    time.sleep(2)
-    
-    return 
-
     log_p("평가 시작")
 
     # TODO 종합평가, 평어를 시트에 저장
@@ -301,7 +269,7 @@ def add_message(all_messages, role, message, withGS : bool = True):
     """
     all_messages.append({"role": role, "content": message})
     if withGS:
-        gs.add_Content(role, message)
+        gs.add_content(role, message)
 
 def delete_message():
     message = st.session_state.messages
