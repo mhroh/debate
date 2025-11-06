@@ -137,17 +137,42 @@ def execute_prompt(messages):
 
     이 함수는 세션 상태에서 설정 정보와 AI 클라이언트를 가져와 사용합니다.
     설정된 파라미터에 따라 AI 모델에 요청을 보내고, 응답 스트림을 반환합니다.
+
+    Prompt Caching을 활용하여 토큰 비용을 절감합니다:
+    - 시스템 프롬프트를 캐싱
+    - 대화 히스토리 중 오래된 부분을 캐싱 (최근 2개 메시지는 제외)
     """
     setupInfo = st.session_state['setupInfo']
     client = st.session_state["bot"]
-    
+
     try:
+        # 메시지 준비 (캐시 제어 추가)
+        prepared_messages = messages.copy()
+
+        # 대화가 충분히 길면 (3개 이상), 최근 2개를 제외한 마지막 메시지에 캐시 마크 추가
+        # 이렇게 하면 오래된 대화 히스토리는 캐싱되어 토큰 비용이 90% 절감됩니다
+        if len(prepared_messages) >= 3:
+            # 끝에서 3번째 메시지에 cache_control 추가
+            prepared_messages[-3] = {
+                **prepared_messages[-3],
+                "cache_control": {"type": "ephemeral"}
+            }
+
+        # 시스템 프롬프트를 캐싱 가능한 형태로 변경
+        system_config = [
+            {
+                "type": "text",
+                "text": setupInfo['system'],
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+
         stream = client.messages.create(
                         model = setupInfo['model'],
                         max_tokens = setupInfo['max_tokens'],
                         temperature = setupInfo['temperature'],
-                        system = setupInfo['system'],
-                        messages = messages,
+                        system = system_config,
+                        messages = prepared_messages,
                         stream = setupInfo['stream']
         )
 
