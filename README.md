@@ -174,6 +174,200 @@ debate/
 ### "Rate Limit Error"
 - API 사용량 한도 초과 - 잠시 후 재시도
 
+## 🚀 20명 동시 사용을 위한 배포 가이드
+
+### 성능 최적화 기능
+
+이 프로젝트는 다음 최적화 기능을 포함합니다:
+
+1. **API 호출 캐싱**
+   - Google Sheets 클라이언트: `@st.cache_resource`로 전역 공유
+   - 설정 정보: `@st.cache_data(ttl=300)`로 5분간 캐싱
+   - 불필요한 API 호출 최소화
+
+2. **에러 재시도 로직**
+   - Google Sheets 쓰기 작업 실패 시 최대 3회 자동 재시도
+   - 지수 백오프 적용 (0.5초, 1초, 1.5초)
+   - 동시 접속 시 발생하는 충돌 방지
+
+3. **세션 독립성**
+   - 각 사용자는 독립된 `st.session_state` 사용
+   - 사용자 간 데이터 간섭 없음
+
+4. **Prompt Caching**
+   - 토큰 비용 최대 90% 절감
+   - 대화가 길어질수록 비용 절감 효과 증가
+
+### 배포 옵션
+
+#### 옵션 1: Streamlit Community Cloud (추천)
+
+**장점:**
+- 무료
+- 자동 배포
+- SSL 인증서 자동 제공
+- 최대 3개 앱 무료 호스팅
+
+**배포 방법:**
+1. GitHub에 코드 푸시
+2. [Streamlit Cloud](https://streamlit.io/cloud) 접속
+3. "New app" 클릭
+4. 저장소, 브랜치, 파일 선택 (app.py)
+5. Advanced settings에서 secrets 추가
+6. Deploy 클릭
+
+**Secrets 설정:** (Streamlit Cloud 대시보드에서)
+```toml
+# Google Service Account
+type = "service_account"
+project_id = "..."
+private_key = "..."
+# ... (나머지 secrets)
+
+# Sheet URL
+sheet_url = "https://..."
+```
+
+**제한사항:**
+- CPU: 0.078 cores
+- RAM: 800MB
+- 무료 플랜에서는 **약 10-15명 동시 접속** 권장
+
+#### 옵션 2: 자체 서버 (VPS/Cloud)
+
+**20명 동시 접속을 위한 권장 사양:**
+- CPU: 2 cores 이상
+- RAM: 2GB 이상
+- OS: Ubuntu 20.04 LTS 이상
+
+**배포 방법:**
+
+1. 서버 접속 및 패키지 설치
+```bash
+sudo apt update
+sudo apt install python3-pip python3-venv nginx -y
+```
+
+2. 프로젝트 클론 및 환경 설정
+```bash
+cd /home/user
+git clone <your-repo>
+cd debate
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+3. `.streamlit/secrets.toml` 생성
+
+4. 서비스 파일 생성 (`/etc/systemd/system/streamlit.service`)
+```ini
+[Unit]
+Description=Streamlit eduChatBot
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/debate
+Environment="PATH=/home/user/debate/venv/bin"
+ExecStart=/home/user/debate/venv/bin/streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+5. 서비스 시작
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable streamlit
+sudo systemctl start streamlit
+```
+
+6. Nginx 리버스 프록시 설정 (선택 사항)
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:8501;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+#### 옵션 3: Docker (고급)
+
+**Dockerfile 생성:**
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+```
+
+**실행:**
+```bash
+docker build -t educhatbot .
+docker run -p 8501:8501 -v $(pwd)/.streamlit:/app/.streamlit educhatbot
+```
+
+### 성능 모니터링
+
+배포 후 다음을 모니터링하세요:
+
+1. **Google Sheets API 할당량**
+   - [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Quotas
+   - 기본 할당량: 분당 60회, 100초당 100회
+   - 필요 시 할당량 증가 요청
+
+2. **Anthropic API 사용량**
+   - [Anthropic Console](https://console.anthropic.com) → Usage
+   - Prompt Caching 효과 확인
+
+3. **서버 리소스** (자체 서버의 경우)
+```bash
+# CPU, 메모리 사용량 확인
+htop
+
+# Streamlit 프로세스 확인
+ps aux | grep streamlit
+
+# 로그 확인
+sudo journalctl -u streamlit -f
+```
+
+### 성능 튜닝 팁
+
+1. **Google Sheets API 할당량 초과 시**
+   - 캐싱 TTL 늘리기 (현재 5분 → 10분)
+   - 배치 쓰기로 변경 고려
+
+2. **서버 메모리 부족 시**
+   - Streamlit 워커 수 제한: `streamlit run app.py --server.maxUploadSize=50`
+   - Python 가비지 컬렉션 최적화
+
+3. **동시 접속자 20명 이상 시**
+   - 로드 밸런서 추가
+   - 여러 인스턴스로 수평 확장
+
 ## 📄 라이선스
 
 이 프로젝트는 교육 목적으로 제작되었습니다.

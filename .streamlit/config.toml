@@ -1,0 +1,66 @@
+# Streamlit 성능 최적화 설정 (20명 동시 접속 대응)
+
+[server]
+# 최대 업로드 크기 (MB)
+maxUploadSize = 200
+
+# 메시지 크기 제한 (MB)
+maxMessageSize = 200
+
+# WebSocket 압축 활성화
+enableWebsocketCompression = true
+
+# CORS 설정 (필요 시 수정)
+enableCORS = false
+enableXsrfProtection = true
+
+# 헤드리스 모드
+headless = true
+
+# 파일 감시 비활성화 (운영 환경)
+runOnSave = false
+
+# 포트 (기본 8501)
+port = 8501
+
+[browser]
+# 자동 브라우저 열기 비활성화
+gatherUsageStats = false
+serverAddress = "localhost"
+
+[client]
+# 클라이언트 연결 설정
+# 서버가 응답하지 않을 때까지 기다리는 시간 (초)
+caching = true
+displayEnabled = true
+showErrorDetails = true
+toolbarMode = "minimal"
+
+[runner]
+# 스크립트 실행 설정
+# 빠른 재실행 활성화
+fastReruns = true
+
+# 매직 명령어 활성화
+magicEnabled = true
+
+# 파일 감시 비활성화 (운영 환경)
+installTracer = false
+fixMatplotlib = true
+
+# 동시 세션 처리 최적화
+postScriptGC = true
+
+[logger]
+# 로그 레벨 설정
+level = "info"
+messageFormat = "%(asctime)s %(levelname)s: %(message)s"
+
+[theme]
+# 테마 설정 (선택 사항)
+# base = "light"
+# primaryColor = "#FF4B4B"
+# backgroundColor = "#FFFFFF"
+# secondaryBackgroundColor = "#F0F2F6"
+# textColor = "#262730"
+# font = "sans serif"

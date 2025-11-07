@@ -3,7 +3,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import time
 
+@st.cache_resource
 def get_authorize():
     """
     Google Sheets API에 접근하기 위한 인증된 gspread 클라이언트를 생성하는 함수입니다.
@@ -19,8 +21,9 @@ def get_authorize():
     Note:
     - 이 함수는 Streamlit의 st.secrets를 사용하여 민감한 인증 정보를 안전하게 관리합니다.
     - Google Sheets API에 대한 접근 범위는 'https://www.googleapis.com/auth/spreadsheets'로 설정됩니다.
+    - @st.cache_resource로 캐싱되어 모든 세션에서 동일한 클라이언트 재사용
     """
-    
+
     # 서비스 계정 key 정보를 딕셔너리 형태로 정의합니다.
     service_account_info = {
         "type": st.secrets["type"],
@@ -43,6 +46,7 @@ def get_authorize():
     # gspread 클라이언트 생성
     return gspread.authorize(creds)
 
+@st.cache_data(ttl=300)  # 5분간 캐싱
 def get_setup_info():
     """
     Google Sheets에서 설정 정보를 가져오는 함수입니다.
@@ -111,6 +115,8 @@ def add_content(role, content):
 
     이 함수는 현재 시간, 역할, 그리고 메시지 내용을 포함하는 새로운 행을
     세션 상태에 저장된 Google Sheets 워크시트에 추가합니다.
+
+    동시 접속 시 발생할 수 있는 에러에 대해 최대 3회 재시도합니다.
     """
     contents = [get_timestamp()]
 
@@ -119,7 +125,28 @@ def add_content(role, content):
     elif role == "assistant":
         contents +=["ASSISTANT", content]
 
-    st.session_state["sheet"].append_row(contents)
+    # 재시도 로직: 동시 접속 시 발생할 수 있는 에러 처리
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            st.session_state["sheet"].append_row(contents)
+            return  # 성공하면 바로 반환
+        except Exception as e:
+            if attempt < max_retries - 1:
+                # 마지막 시도가 아니면 잠시 대기 후 재시도
+                time.sleep(0.5 * (attempt + 1))  # 0.5초, 1초, 1.5초 대기
+                continue
+            else:
+                # 모든 재시도 실패 시 에러 로깅 (하지만 앱은 계속 실행)
+                print(f"Google Sheets 저장 실패 (3회 재시도 후): {str(e)}")
+                # 세션 상태에 에러 저장 (선택적)
+                if "gs_errors" not in st.session_state:
+                    st.session_state["gs_errors"] = []
+                st.session_state["gs_errors"].append({
+                    "timestamp": get_timestamp(),
+                    "role": role,
+                    "error": str(e)
+                })
 
 def get_timestamp():
     """
